@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bebederos y Canillas CABA - 48 Barrios</title>
+ 
+  <!-- Estilos Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body { display: flex; flex-direction: column; height: 100vh; }
+   
+    header {
+      background: #0284c7;
+      color: white;
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+    }
+    .acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    select, button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+    select {
+      max-width: 210px;
+      background: white;
+    }
+    button.btn-gps {
+      background: #22c55e;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button.btn-gps:hover { background: #16a34a; }
+    #map { flex: 1; width: 100%; }
+   
+    .popup-texto { font-size: 13px; line-height: 1.45; min-width: 220px; }
+    .distancia-box {
+      margin: 6px 0;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-weight: 600;
+      padding: 4px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      font-size: 12px;
+    }
+    .seccion-llegar {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .titulo-llegar {
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+      display: block;
+    }
+    .botones-rutas {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .btn-modo {
+      flex: 1;
+      padding: 6px 4px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: bold;
+      color: white;
+      text-align: center;
+    }
+    .btn-caminar { background: #0284c7; }
+    .btn-caminar:hover { background: #0369a1; }
+    .btn-auto { background: #f59e0b; }
+    .btn-auto:hover { background: #d97706; }
+
+    .btn-externo {
+      display: block;
+      text-align: center;
+      background: #f1f5f9;
+      color: #475569;
+      text-decoration: none;
+      padding: 4px;
+      border-radius: 4px;
+      font-size: 11px;
+      border: 1px solid #cbd5e1;
+    }
+    .btn-externo:hover { background: #e2e8f0; }
+
+    .panel-info-ruta {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      z-index: 1000;
+      font-size: 13px;
+      display: none;
+      max-width: 320px;
+    }
+    .panel-info-ruta strong.tit {
+      font-size: 14px;
+      color: #0f172a;
+      display: block;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h3>💧 Canillas y Bebederos CABA (48 Barrios)</h3>
+    <div class="acciones">
+      <select id="filtroBarrio">
+        <option value="TODOS">Todos los barrios (48)</option>
+      </select>
+      <button id="btnGps" class="btn-gps">📍 Mi Ubicación</button>
+    </div>
+  </header>
+
+  <div id="map"></div>
+  <div id="infoRuta" class="panel-info-ruta"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const map = L.map('map').setView([-34.615, -58.435], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const puntos = [
+      // Agronomía
+      { nombre: "Parque Agronomía (Pabellón Central)", barrio: "Agronomía", lat: -34.5936, lng: -58.4842 },
+      { nombre: "Agronomía (Pista y Vivero)", barrio: "Agronomía", lat: -34.5960, lng: -58.4885 },
+      { nombre: "Plaza 24 de Septiembre Norte", barrio: "Agronomía", lat: -34.5905, lng: -58.4815 },
+      { nombre: "Corredor San Martín y Chorroarín", barrio: "Agronomía", lat: -34.5915, lng: -58.4760 },
+
+      // Almagro
+      { nombre: "Plaza Almagro (Sarmiento y Bulnes)", barrio: "Almagro", lat: -34.6042, lng: -58.4196 },
+      { nombre: "Plaza Almagro (Sector Juegos)", barrio: "Almagro", lat: -34.6048, lng: -58.4210 },
+      { nombre: "Plaza Almagro (Canchas)", barrio: "Almagro", lat: -34.6035, lng: -58.4202 },
+      { nombre: "Corredor Medrano y Corrientes", barrio: "Almagro", lat: -34.6040, lng: -58.4245 },
+
+      // Balvanera
+      { nombre: "Plaza Miserere (Sector Dársenas)", barrio: "Balvanera", lat: -34.6098, lng: -58.4074 },
+      { nombre: "Plaza 1° de Mayo (Alsina)", barrio: "Balvanera", lat: -34.6120, lng: -58.3970 },
+      { nombre: "Plaza Velasco Ibarra (Jujuy)", barrio: "Balvanera", lat: -34.6160, lng: -58.4045 },
+      { nombre: "Plaza Fumarola (Anchorena)", barrio: "Balvanera", lat: -34.6025, lng: -58.4060 },
+
+      // Barracas
+      { nombre: "Parque Leonardo Pereyra (Vértice)", barrio: "Barracas", lat: -34.6462, lng: -58.3815 },
+      { nombre: "Plaza Colombia (Montes de Oca)", barrio: "Barracas", lat: -34.6395, lng: -58.3752 },
+      { nombre: "Plaza Herrera", barrio: "Barracas", lat: -34.6475, lng: -58.3730 },
+      { nombre: "Parque de la Estación Buenos Aires", barrio: "Barracas", lat: -34.6430, lng: -58.3920 },
+
+      // Belgrano
+      { nombre: "Barrancas de Belgrano (Glorieta)", barrio: "Belgrano", lat: -34.5610, lng: -58.4485 },
+      { nombre: "Barrancas de Belgrano (Juegos Virrey Vértiz)", barrio: "Belgrano", lat: -34.5590, lng: -58.4510 },
+      { nombre: "Plaza Castelli (Juramento)", barrio: "Belgrano", lat: -34.5695, lng: -58.4620 },
+      { nombre: "Plaza Manuel Belgrano (La Redonda)", barrio: "Belgrano", lat: -34.5627, lng: -58.4560 },
+
+      // Boedo
+      { nombre: "Plaza Mariano Boedo (Carlos Calvo)", barrio: "Boedo", lat: -34.6235, lng: -58.4168 },
+      { nombre: "Plaza Mariano Boedo (Juegos)", barrio: "Boedo", lat: -34.6240, lng: -58.4175 },
+      { nombre: "Plazoleta San Lorenzo (San Juan y Boedo)", barrio: "Boedo", lat: -34.6270, lng: -58.4190 },
+      { nombre: "Plazoleta Colombia Viva (Independencia)", barrio: "Boedo", lat: -34.6290, lng: -58.4140 },
+
+      // Caballito
+      { nombre: "Parque Rivadavia (Monumento)", barrio: "Caballito", lat: -34.6186, lng: -58.4312 },
+      { nombre: "Parque Rivadavia (Pista / Chirimay)", barrio: "Caballito", lat: -34.6195, lng: -58.4325 },
+      { nombre: "Parque Centenario (Pista Atletismo)", barrio: "Caballito", lat: -34.6062, lng: -58.4355 },
+      { nombre: "Parque Centenario (Anfiteatro)", barrio: "Caballito", lat: -34.6045, lng: -58.4360 },
+      { nombre: "Plaza Irlanda (Gaona)", barrio: "Caballito", lat: -34.6115, lng: -58.4552 },
+      { nombre: "Plaza Giordano Bruno", barrio: "Caballito", lat: -34.6198, lng: -58.4468 },
+
+      // Chacarita
+      { nombre: "Parque Los Andes (Jorge Newbery)", barrio: "Chacarita", lat: -34.5878, lng: -58.4520 },
+      { nombre: "Parque Los Andes (Dorrego)", barrio: "Chacarita", lat: -34.5890, lng: -58.4505 },
+      { nombre: "Plaza El Galpón", barrio: "Chacarita", lat: -34.5860, lng: -58.4570 },
+      { nombre: "Plazoleta Voluntarios Héroes", barrio: "Chacarita", lat: -34.5840, lng: -58.4550 },
+
+      // Coghlan
+      { nombre: "Plaza Estación Coghlan", barrio: "Coghlan", lat: -34.5630, lng: -58.4720 },
+      { nombre: "Plaza Coghlan (Lado Este)", barrio: "Coghlan", lat: -34.5638, lng: -58.4710 },
+      { nombre: "Plazoleta Monroe y Balbín", barrio: "Coghlan", lat: -34.5645, lng: -58.4750 },
+      { nombre: "Boulevard San Isidro Labrador", barrio: "Coghlan", lat: -34.5610, lng: -58.4735 },
+
+      // Colegiales
+      { nombre: "Plaza Mafalda (Conde)", barrio: "Colegiales", lat: -34.5796, lng: -58.4428 },
+      { nombre: "Plaza Juan José Paso (Moldes)", barrio: "Colegiales", lat: -34.5768, lng: -58.4503 },
+      { nombre: "Plaza de los Colegiales", barrio: "Colegiales", lat: -34.5780, lng: -58.4460 },
+      { nombre: "Plazoleta Portugal (Crámer)", barrio: "Colegiales", lat: -34.5750, lng: -58.4490 },
+
+      // Constitución
+      { nombre: "Plaza Constitución (Lima Este)", barrio: "Constitución", lat: -34.6272, lng: -58.3812 },
+      { nombre: "Plaza Constitución (Garay)", barrio: "Constitución", lat: -34.6280, lng: -58.3825 },
+      { nombre: "Plazoleta Lola Mora", barrio: "Constitución", lat: -34.6240, lng: -58.3800 },
+      { nombre: "Plazoleta Provincias Unidas", barrio: "Constitución", lat: -34.6255, lng: -58.3860 },
+
+      // Flores
+      { nombre: "Plaza Pueyrredón / Flores (Rivadavia)", barrio: "Flores", lat: -34.6288, lng: -58.4635 },
+      { nombre: "Plaza Misericordia (Lautaro)", barrio: "Flores", lat: -34.6315, lng: -58.4550 },
+      { nombre: "Plaza General Pueyrredón (Artigas)", barrio: "Flores", lat: -34.6275, lng: -58.4645 },
+      { nombre: "Plaza Tupac Amaru", barrio: "Flores", lat: -34.6360, lng: -58.4610 },
+
+      // Floresta
+      { nombre: "Plaza Vélez Sarsfield (Avellaneda)", barrio: "Floresta", lat: -34.6300, lng: -58.4800 },
+      { nombre: "Plaza Ciudad de Udine (Chivilcoy)", barrio: "Floresta", lat: -34.6230, lng: -58.4860 },
+      { nombre: "Parque Olivera", barrio: "Floresta", lat: -34.6350, lng: -58.4790 },
+      { nombre: "Plazoleta Monte Dinero", barrio: "Floresta", lat: -34.6320, lng: -58.4835 },
+
+      // La Boca
+      { nombre: "Vuelta de Rocha (Caminito)", barrio: "La Boca", lat: -34.6390, lng: -58.3625 },
+      { nombre: "Plaza Matheu (Magallanes)", barrio: "La Boca", lat: -34.6338, lng: -58.3630 },
+      { nombre: "Plaza Almirante Brown", barrio: "La Boca", lat: -34.6350, lng: -58.3580 },
+      { nombre: "Plaza Solís", barrio: "La Boca", lat: -34.6310, lng: -58.3640 },
+
+      // La Paternal
+      { nombre: "Plaza 24 de Septiembre (San Martín)", barrio: "La Paternal", lat: -34.6015, lng: -58.4570 },
+      { nombre: "Plaza Roque Sáenz Peña", barrio: "La Paternal", lat: -34.6070, lng: -58.4620 },
+      { nombre: "Plazoleta Isla de la Paternal", barrio: "La Paternal", lat: -34.5970, lng: -58.4650 },
+      { nombre: "Corredor Warnes y Trelles", barrio: "La Paternal", lat: -34.5995, lng: -58.4600 },
+
+      // Liniers
+      { nombre: "Plaza Sarmiento (Cosquín)", barrio: "Liniers", lat: -34.6465, lng: -58.5225 },
+      { nombre: "Plaza Coronel Martín Irigoyen", barrio: "Liniers", lat: -34.6430, lng: -58.5170 },
+      { nombre: "Plaza Santojanni", barrio: "Liniers", lat: -34.6505, lng: -58.5180 },
+      { nombre: "Plazoleta San Cayetano", barrio: "Liniers", lat: -34.6415, lng: -58.5245 },
+
+      // Mataderos
+      { nombre: "Parque Alberdi (Pista)", barrio: "Mataderos", lat: -34.6605, lng: -58.5020 },
+      { nombre: "Parque Alberdi (Sector Juegos)", barrio: "Mataderos", lat: -34.6590, lng: -58.5000 },
+      { nombre: "Plaza Rómulo Zabala", barrio: "Mataderos", lat: -34.6540, lng: -58.4980 },
+      { nombre: "Plaza de la Tradición", barrio: "Mataderos", lat: -34.6570, lng: -58.5080 },
+
+      // Monte Castro
+      { nombre: "Plaza Don Bosco (Miranda)", barrio: "Monte Castro", lat: -34.6225, lng: -58.5080 },
+      { nombre: "Plaza Monseñor Lafitte", barrio: "Monte Castro", lat: -34.6200, lng: -58.5020 },
+      { nombre: "Plazoleta San Pedro", barrio: "Monte Castro", lat: -34.6260, lng: -58.5110 },
+      { nombre: "Corredor Jonte y Segurola", barrio: "Monte Castro", lat: -34.6210, lng: -58.5050 },
+
+      // Montserrat
+      { nombre: "Plaza de Mayo (Costado Bolívar)", barrio: "Montserrat", lat: -34.6083, lng: -58.3712 },
+      { nombre: "Plaza del Congreso (Yrigoyen)", barrio: "Montserrat", lat: -34.6095, lng: -58.3890 },
+      { nombre: "Plaza Lorea", barrio: "Montserrat", lat: -34.6088, lng: -58.3875 },
+      { nombre: "Plazoleta Castelao (Av. de Mayo)", barrio: "Montserrat", lat: -34.6090, lng: -58.3830 },
+
+      // Nueva Pompeya
+      { nombre: "Plaza Nueva Pompeya (Traful)", barrio: "Nueva Pompeya", lat: -34.6545, lng: -58.4190 },
+      { nombre: "Plaza Tupac Amaru Sur", barrio: "Nueva Pompeya", lat: -34.6580, lng: -58.4120 },
+      { nombre: "Plazoleta Homero Manzi", barrio: "Nueva Pompeya", lat: -34.6510, lng: -58.4180 },
+      { nombre: "Corredor Sáenz y Perito Moreno", barrio: "Nueva Pompeya", lat: -34.6530, lng: -58.4230 },
+
+      // Núñez
+      { nombre: "Plaza Balcarce (Cabildo)", barrio: "Núñez", lat: -34.5448, lng: -58.4645 },
+      { nombre: "Plaza Félix Lima (Arias)", barrio: "Núñez", lat: -34.5380, lng: -58.4670 },
+      { nombre: "Parque San Benito de Palermo", barrio: "Núñez", lat: -34.5510, lng: -58.4410 },
+      { nombre: "Plaza Alberti", barrio: "Núñez", lat: -34.5515, lng: -58.4580 },
+
+      // Palermo
+      { nombre: "Parque Las Heras (Pista)", barrio: "Palermo", lat: -34.5843, lng: -58.4063 },
+      { nombre: "El Rosedal de Palermo (Circuito)", barrio: "Palermo", lat: -34.5711, lng: -58.4172 },
+      { nombre: "Plaza Serrano (Cortázar)", barrio: "Palermo", lat: -34.5885, lng: -58.4305 },
+      { nombre: "Plaza Armenia (Malabia)", barrio: "Palermo", lat: -34.5898, lng: -58.4245 },
+      { nombre: "Jardín Botánico (Entrada Santa Fe)", barrio: "Palermo", lat: -34.5825, lng: -58.4160 },
+      { nombre: "Parque Tres de Febrero (Planetario)", barrio: "Palermo", lat: -34.5695, lng: -58.4115 },
+
+      // Parque Avellaneda
+      { nombre: "Parque Nicolás Avellaneda (Casona)", barrio: "Parque Avellaneda", lat: -34.6480, lng: -58.4770 },
+      { nombre: "Parque Avellaneda (Pista y Natatorio)", barrio: "Parque Avellaneda", lat: -34.6510, lng: -58.4750 },
+      { nombre: "Plaza Domingo Olivera", barrio: "Parque Avellaneda", lat: -34.6460, lng: -58.4820 },
+      { nombre: "Plazoleta Remedios", barrio: "Parque Avellaneda", lat: -34.6440, lng: -58.4710 },
+
+      // Parque Chacabuco
+      { nombre: "Parque Chacabuco (Pista de Atletismo)", barrio: "Parque Chacabuco", lat: -34.6340, lng: -58.4410 },
+      { nombre: "Parque Chacabuco (Sector Asamblea)", barrio: "Parque Chacabuco", lat: -34.6360, lng: -58.4440 },
+      { nombre: "Parque Chacabuco (Canchas Tejedor)", barrio: "Parque Chacabuco", lat: -34.6325, lng: -58.4380 },
+      { nombre: "Plaza De la Misericordia Sur", barrio: "Parque Chacabuco", lat: -34.6310, lng: -58.4470 },
+
+      // Parque Chas
+      { nombre: "Plaza Éxodo Jujeño (Gándara)", barrio: "Parque Chas", lat: -34.5840, lng: -58.4795 },
+      { nombre: "Plazoleta Capitán Domingo de Acassuso", barrio: "Parque Chas", lat: -34.5815, lng: -58.4760 },
+      { nombre: "Plaza Nobel", barrio: "Parque Chas", lat: -34.5855, lng: -58.4830 },
+      { nombre: "Plazoleta La Pampa y Andonaegui", barrio: "Parque Chas", lat: -34.5795, lng: -58.4780 },
+
+      // Parque Patricios
+      { nombre: "Parque de los Patricios (Hospital Muñiz)", barrio: "Parque Patricios", lat: -34.6375, lng: -58.4060 },
+      { nombre: "Parque de los Patricios (Caseros)", barrio: "Parque Patricios", lat: -34.6390, lng: -58.4040 },
+      { nombre: "Plaza José C. Paz", barrio: "Parque Patricios", lat: -34.6330, lng: -58.4020 },
+      { nombre: "Plaza Florentino Ameghino", barrio: "Parque Patricios", lat: -34.6350, lng: -58.3950 },
+
+      // Puerto Madero
+      { nombre: "Parque Mujeres Argentinas (Central)", barrio: "Puerto Madero", lat: -34.6075, lng: -58.3615 },
+      { nombre: "Reserva Ecológica (Entrada Brasil)", barrio: "Puerto Madero", lat: -34.6190, lng: -58.3560 },
+      { nombre: "Parque Micaela Bastidas", barrio: "Puerto Madero", lat: -34.6150, lng: -58.3590 },
+      { nombre: "Dique 3 (Puente de la Mujer)", barrio: "Puerto Madero", lat: -34.6070, lng: -58.3650 },
+
+      // Recoleta
+      { nombre: "Plaza Francia (Alvear)", barrio: "Recoleta", lat: -34.5860, lng: -58.3920 },
+      { nombre: "Parque Carlos Thays (Figueroa Alcorta)", barrio: "Recoleta", lat: -34.5830, lng: -58.3895 },
+      { nombre: "Plaza Vicente López (Paraná)", barrio: "Recoleta", lat: -34.5925, lng: -58.3890 },
+      { nombre: "Plaza Rubén Darío (Museo Bellas Artes)", barrio: "Recoleta", lat: -34.5840, lng: -58.3930 },
+
+      // Retiro
+      { nombre: "Plaza General San Martín (Torre)", barrio: "Retiro", lat: -34.5950, lng: -58.3760 },
+      { nombre: "Plaza San Martín (Santa Fe)", barrio: "Retiro", lat: -34.5935, lng: -58.3785 },
+      { nombre: "Plaza Canadá (Terminal)", barrio: "Retiro", lat: -34.5890, lng: -58.3745 },
+      { nombre: "Plaza Fuerza Aérea Argentina", barrio: "Retiro", lat: -34.5915, lng: -58.3740 },
+
+      // Saavedra
+      { nombre: "Parque Saavedra (García del Río)", barrio: "Saavedra", lat: -34.5495, lng: -58.4795 },
+      { nombre: "Parque General Paz (Museo Saavedra)", barrio: "Saavedra", lat: -34.5685, lng: -58.5090 },
+      { nombre: "Plaza Benjamín Vicuña Mackenna", barrio: "Saavedra", lat: -34.5550, lng: -58.4870 },
+      { nombre: "Plaza 1° de Marzo de 1948", barrio: "Saavedra", lat: -34.5450, lng: -58.4850 },
+
+      // San Cristóbal
+      { nombre: "Plaza Martín Fierro (Oruro)", barrio: "San Cristóbal", lat: -34.6255, lng: -58.4035 },
+      { nombre: "Plaza Martín Fierro (Canchas)", barrio: "San Cristóbal", lat: -34.6265, lng: -58.4045 },
+      { nombre: "Plazoleta Juana Manso", barrio: "San Cristóbal", lat: -34.6210, lng: -58.3990 },
+      { nombre: "Plazoleta Juan B. Justo", barrio: "San Cristóbal", lat: -34.6240, lng: -58.3960 },
+
+      // San Nicolás
+      { nombre: "Plaza Lavalle (Teatro Colón)", barrio: "San Nicolás", lat: -34.6015, lng: -58.3840 },
+      { nombre: "Plaza de la República (Obelisco)", barrio: "San Nicolás", lat: -34.6037, lng: -58.3816 },
+      { nombre: "Plaza Roma (Bouchard)", barrio: "San Nicolás", lat: -34.6025, lng: -58.3690 },
+      { nombre: "Plazoleta Suipacha y Diagonal Norte", barrio: "San Nicolás", lat: -34.6045, lng: -58.3780 },
+
+      // San Telmo
+      { nombre: "Parque Lezama (Anfiteatro Brasil)", barrio: "San Telmo", lat: -34.6281, lng: -58.3698 },
+      { nombre: "Plaza Dorrego (Defensa)", barrio: "San Telmo", lat: -34.6200, lng: -58.3725 },
+      { nombre: "Plazoleta Cecilia Grierson", barrio: "San Telmo", lat: -34.6225, lng: -58.3685 },
+      { nombre: "Parque Lezama (Monumento Paseo Colón)", barrio: "San Telmo", lat: -34.6295, lng: -58.3680 },
+
+      // Vélez Sarsfield
+      { nombre: "Plaza Che Guevara (Avellaneda)", barrio: "Vélez Sarsfield", lat: -34.6320, lng: -58.4870 },
+      { nombre: "Plaza de la Bandera (Juan B. Justo)", barrio: "Vélez Sarsfield", lat: -34.6280, lng: -58.4900 },
+      { nombre: "Plazoleta Falcón", barrio: "Vélez Sarsfield", lat: -34.6345, lng: -58.4890 },
+      { nombre: "Corredor Gaona y Carrasco", barrio: "Vélez Sarsfield", lat: -34.6260, lng: -58.4840 },
+
+      // Versalles
+      { nombre: "Plaza Belisario Roldán", barrio: "Versalles", lat: -34.6275, lng: -58.5240 },
+      { nombre: "Plaza Ciudad de Banff", barrio: "Versalles", lat: -34.6290, lng: -58.5210 },
+      { nombre: "Paseo de Versalles (Bruselas)", barrio: "Versalles", lat: -34.6310, lng: -58.5255 },
+      { nombre: "Plazoleta Roma", barrio: "Versalles", lat: -34.6250, lng: -58.5200 },
+
+      // Villa Crespo
+      { nombre: "Parque Los Andes (Corrientes)", barrio: "Villa Crespo", lat: -34.5905, lng: -58.4480 },
+      { nombre: "Plaza Benito Nazar (Olaya)", barrio: "Villa Crespo", lat: -34.6012, lng: -58.4430 },
+      { nombre: "Plazoleta Elías Alippi", barrio: "Villa Crespo", lat: -34.5980, lng: -58.4380 },
+      { nombre: "Plaza Dr. Bernardo Houssay Norte", barrio: "Villa Crespo", lat: -34.5940, lng: -58.4420 },
+
+      // Villa del Parque
+      { nombre: "Plaza Aristóbulo del Valle (Cuenca)", barrio: "Villa del Parque", lat: -34.6045, lng: -58.4910 },
+      { nombre: "Plaza Jorge Newbery", barrio: "Villa del Parque", lat: -34.6070, lng: -58.4960 },
+      { nombre: "Plazoleta de la Estación Villa del Parque", barrio: "Villa del Parque", lat: -34.6020, lng: -58.4890 },
+      { nombre: "Corredor Álvarez Jonte y Nazca", barrio: "Villa del Parque", lat: -34.6085, lng: -58.4860 },
+
+      // Villa Devoto
+      { nombre: "Plaza Arenales (Nueva York)", barrio: "Villa Devoto", lat: -34.5995, lng: -58.5135 },
+      { nombre: "Plaza Arenales (Mercedes)", barrio: "Villa Devoto", lat: -34.6005, lng: -58.5150 },
+      { nombre: "Plaza Riccheri (Beiró)", barrio: "Villa Devoto", lat: -34.6090, lng: -58.5190 },
+      { nombre: "Plaza El Maestro Devoto", barrio: "Villa Devoto", lat: -34.5930, lng: -58.5110 },
+
+      // Villa General Mitre
+      { nombre: "Plaza Nuestra Señora de la Asunción", barrio: "Villa General Mitre", lat: -34.6105, lng: -58.4690 },
+      { nombre: "Plaza Roque Sáenz Peña Sur", barrio: "Villa General Mitre", lat: -34.6080, lng: -58.4670 },
+      { nombre: "Plazoleta Pappo (Juan B. Justo)", barrio: "Villa General Mitre", lat: -34.6050, lng: -58.4650 },
+      { nombre: "Corredor Boyacá y San Martín", barrio: "Villa General Mitre", lat: -34.6090, lng: -58.4730 },
+
+      // Villa Lugano
+      { nombre: "Parque de las Victorias (Larrazábal)", barrio: "Villa Lugano", lat: -34.6815, lng: -58.4735 },
+      { nombre: "Plaza Unidad Nacional (Murguiondo)", barrio: "Villa Lugano", lat: -34.6730, lng: -58.4680 },
+      { nombre: "Parque Ribera Sur", barrio: "Villa Lugano", lat: -34.6930, lng: -58.4640 },
+      { nombre: "Plaza Sudamérica (Fernández de la Cruz)", barrio: "Villa Lugano", lat: -34.6680, lng: -58.4750 },
+
+      // Villa Luro
+      { nombre: "Plaza Los Derechos del Hombre", barrio: "Villa Luro", lat: -34.6390, lng: -58.5030 },
+      { nombre: "Plaza Ejercito de los Andes", barrio: "Villa Luro", lat: -34.6360, lng: -58.5080 },
+      { nombre: "Plaza Ramón Falcón", barrio: "Villa Luro", lat: -34.6420, lng: -58.5010 },
+      { nombre: "Boulevard Rivadavia y Lope de Vega", barrio: "Villa Luro", lat: -34.6375, lng: -58.5050 },
+
+      // Villa Ortúzar
+      { nombre: "Plaza 25 de Agosto (Heredia)", barrio: "Villa Ortúzar", lat: -34.5790, lng: -58.4695 },
+      { nombre: "Plaza Antonio Malaver", barrio: "Villa Ortúzar", lat: -34.5820, lng: -58.4650 },
+      { nombre: "Plazoleta Triunvirato y Tronador", barrio: "Villa Ortúzar", lat: -34.5850, lng: -58.4680 },
+      { nombre: "Corredor Álvarez Thomas", barrio: "Villa Ortúzar", lat: -34.5770, lng: -58.4640 },
+
+      // Villa Pueyrredón
+      { nombre: "Plaza Leandro N. Alem", barrio: "Villa Pueyrredón", lat: -34.5775, lng: -58.5030 },
+      { nombre: "Plaza Nunca Más (Obispo San Alberto)", barrio: "Villa Pueyrredón", lat: -34.5820, lng: -58.5080 },
+      { nombre: "Plazoleta Estación Pueyrredón", barrio: "Villa Pueyrredón", lat: -34.5740, lng: -58.5000 },
+      { nombre: "Corredor Salvador María del Carril", barrio: "Villa Pueyrredón", lat: -34.5800, lng: -58.5050 },
+
+      // Villa Real
+      { nombre: "Plaza Juan B. Terán (Nogoyá)", barrio: "Villa Real", lat: -34.6185, lng: -58.5255 },
+      { nombre: "Plaza Villa Real (Irigoyen)", barrio: "Villa Real", lat: -34.6150, lng: -58.5270 },
+      { nombre: "Plazoleta José Ingenieros", barrio: "Villa Real", lat: -34.6210, lng: -58.5230 },
+      { nombre: "Corredor Beiró y General Paz", barrio: "Villa Real", lat: -34.6120, lng: -58.5290 },
+
+      // Villa Riachuelo
+      { nombre: "Parque de la Ciudad (Sector Torre)", barrio: "Villa Riachuelo", lat: -34.6720, lng: -58.4560 },
+      { nombre: "Autódromo de Buenos Aires (Acceso)", barrio: "Villa Riachuelo", lat: -34.6935, lng: -58.4610 },
+      { nombre: "Plaza de los Periodistas del Sur", barrio: "Villa Riachuelo", lat: -34.6850, lng: -58.4650 },
+      { nombre: "Parque Roca (Estadio de Tenis)", barrio: "Villa Riachuelo", lat: -34.6780, lng: -58.4480 },
+
+      // Villa Santa Rita
+      { nombre: "Plaza El Maestro (Cuenca)", barrio: "Villa Santa Rita", lat: -34.6155, lng: -58.4830 },
+      { nombre: "Plazoleta Santa Rita (Álvarez Jonte)", barrio: "Villa Santa Rita", lat: -34.6120, lng: -58.4810 },
+      { nombre: "Plazoleta Nazca y Juan B. Justo", barrio: "Villa Santa Rita", lat: -34.6140, lng: -58.4770 },
+      { nombre: "Corredor Concordia y Campana", barrio: "Villa Santa Rita", lat: -34.6170, lng: -58.4860 },
+
+      // Villa Soldati
+      { nombre: "Parque Indoamericano (Escalera Central)", barrio: "Villa Soldati", lat: -34.6640, lng: -58.4540 },
+      { nombre: "Parque de la Ciudad Norte", barrio: "Villa Soldati", lat: -34.6690, lng: -58.4520 },
+      { nombre: "Plaza Soldati (Corrales)", barrio: "Villa Soldati", lat: -34.6590, lng: -58.4460 },
+      { nombre: "Parque Olímpico de la Juventud", barrio: "Villa Soldati", lat: -34.6725, lng: -58.4480 },
+
+      // Villa Urquiza
+      { nombre: "Plaza Echeverría (Pedro Ignacio Rivera)", barrio: "Villa Urquiza", lat: -34.5720, lng: -58.4870 },
+      { nombre: "Plaza Marcos Sastre (Monroe)", barrio: "Villa Urquiza", lat: -34.5765, lng: -58.4820 },
+      { nombre: "Plaza Casal (Triunvirato)", barrio: "Villa Urquiza", lat: -34.5740, lng: -58.4910 },
+      { nombre: "Plaza Zapiola", barrio: "Villa Urquiza", lat: -34.5700, lng: -58.4780 }
+    ];
+
+    let miUbicacion = null;
+    let capaPuntos = L.layerGroup().addTo(map);
+    let capaRuta = L.layerGroup().addTo(map);
+    let marcadorYo = null;
+
+    const selectBarrio = document.getElementById('filtroBarrio');
+    const barriosUnicos = [...new Set(puntos.map(p => p.barrio))].sort((a, b) => a.localeCompare('es'));
+    barriosUnicos.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      selectBarrio.appendChild(opt);
+    });
+
+    function dibujarPuntos(filtro = "TODOS") {
+      capaPuntos.clearLayers();
+      const filtrados = puntos.filter(p => filtro === "TODOS" || p.barrio === filtro);
+
+      filtrados.forEach(p => {
+        const coord = L.latLng(p.lat, p.lng);
+        const marker = L.circleMarker(coord, {
+          radius: 8,
+          fillColor: "#0284c7",
+          color: "#ffffff",
+          weight: 2,
+          fillOpacity: 0.9
+        });
+
+        let contenidoPopup = `
+          <div class="popup-texto">
+            <strong>${p.nombre}</strong><br>
+            Barrio: <span>${p.barrio}</span>
+        `;
+
+        if (miUbicacion) {
+          const distMetros = Math.round(miUbicacion.distanceTo(coord));
+          const distLegible = distMetros >= 1000
+            ? (distMetros / 1000).toFixed(2) + " km"
+            : distMetros + " metros";
+         
+          contenidoPopup += `
+            <br><div class="distancia-box">📏 Distancia: ~${distLegible}</div>
+            <div class="seccion-llegar">
+              <span class="titulo-llegar">¿Cómo llegar?</span>
+              <div class="botones-rutas">
+                <button class="btn-modo btn-caminar" onclick="trazarRuta(${p.lat}, ${p.lng}, 'foot', '${p.nombre.replace(/'/g, "\\'")}')">🚶 Caminando</button>
+                <button class="btn-modo btn-auto" onclick="trazarRuta(${p.lat}, ${p.lng}, 'driving', '${p.nombre.replace(/'/g, "\\'")}')">🚗 En Auto</button>
+              </div>
+              <a class="btn-externo" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank">Abrir en Google Maps ↗</a>
+            </div>
+          `;
+        } else {
+          contenidoPopup += `
+            <br><small style="color:#64748b; margin-top:6px; display:block;">
+              ⚠️ Tocá <strong>'📍 Mi Ubicación'</strong> arriba para calcular la distancia y habilitar las rutas.
+            </small>
+          `;
+        }
+
+        contenidoPopup += `</div>`;
+        marker.bindPopup(contenidoPopup);
+        capaPuntos.addLayer(marker);
+      });
+    }
+
+    dibujarPuntos();
+
+    window.trazarRuta = async function(destLat, destLng, modo, nombrePunto) {
+      if (!miUbicacion) {
+        alert("Primero presioná '📍 Mi Ubicación'.");
+        return;
+      }
+
+      const panelInfo = document.getElementById('infoRuta');
+      panelInfo.style.display = 'block';
+      panelInfo.innerHTML = "⏳ Calculando ruta más rápida...";
+
+      const url = `https://router.project-osrm.org/route/v1/${modo}/${miUbicacion.lng},${miUbicacion.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
+
+      try {
+        const respuesta = await fetch(url);
+        const datos = await respuesta.json();
+
+        if (!datos.routes || datos.routes.length === 0) {
+          alert("No se encontró una ruta vial para ese trayecto.");
+          panelInfo.style.display = 'none';
+          return;
+        }
+
+        const ruta = datos.routes[0];
+        const coordenadas = ruta.geometry.coordinates.map(c => [c[1], c[0]]);
+        const duracionMin = Math.round(ruta.duration / 60);
+        const distanciaKm = (ruta.distance / 1000).toFixed(2);
+
+        capaRuta.clearLayers();
+        const colorTrazo = (modo === 'driving') ? '#f59e0b' : '#0284c7';
+
+        const polyline = L.polyline(coordenadas, {
+          color: colorTrazo,
+          weight: 5,
+          opacity: 0.85
+        }).addTo(capaRuta);
+
+        map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+
+        const etiquetaModo = (modo === 'driving') ? '🚗 En Auto' : '🚶 Caminando';
+        panelInfo.innerHTML = `
+          <strong class="tit">${nombrePunto}</strong>
+          Modo: <strong>${etiquetaModo}</strong><br>
+          Distancia calle: <strong>${distanciaKm} km</strong><br>
+          Tiempo estimado: <strong>~${duracionMin} min</strong>
+        `;
+      } catch (e) {
+        panelInfo.style.display = 'none';
+        alert("Ocurrió un error al consultar el servicio de ruteo.");
+      }
+    };
+
+    selectBarrio.addEventListener('change', (e) => {
+      dibujarPuntos(e.target.value);
+      if (capaPuntos.getLayers().length > 0) {
+        const grupo = L.featureGroup(capaPuntos.getLayers());
+        map.fitBounds(grupo.getBounds().pad(0.2));
+      }
+    });
+
+    document.getElementById('btnGps').addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert("Tu dispositivo no soporta geolocalización.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition((pos) => {
+        miUbicacion = L.latLng(pos.coords.latitude, pos.coords.longitude);
+
+        if (marcadorYo) {
+          marcadorYo.setLatLng(miUbicacion);
+        } else {
+          marcadorYo = L.circleMarker(miUbicacion, {
+            radius: 9,
+            fillColor: "#ef4444",
+            color: "#ffffff",
+            weight: 2,
+            fillOpacity: 1
+          }).addTo(map).bindPopup("📍 <strong>Estás acá</strong>");
+        }
+
+        map.setView(miUbicacion, 15);
+        dibujarPuntos(selectBarrio.value);
+      }, () => {
+        alert("Habilitá los permisos de ubicación en el navegador para calcular las distancias y rutas.");
+      }, { enableHighAccuracy: true });
+    });
+  </script>
+</body>
+</html>
